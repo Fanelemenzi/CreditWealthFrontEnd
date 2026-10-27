@@ -3,11 +3,25 @@
 ## 🔧 Configuration
 
 ### Set API Base URL in your frontend `.env` file:
+
+**For Vite (React + Vite):**
+```env
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+**For Create React App:**
 ```env
 REACT_APP_API_BASE_URL=http://localhost:8000
 ```
 
 ### Import and use in your code:
+
+**Vite:**
+```javascript
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+```
+
+**Create React App:**
 ```javascript
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000';
 ```
@@ -18,16 +32,17 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'http://localhost:800
 
 | Endpoint | Method | Purpose | Auth Required |
 |----------|--------|---------|---------------|
-| `/api/auth/auth/signup/` | POST | Register new user | No |
-| `/api/auth/auth/signin/` | POST | Login user | No |
+| `/api/auth/signup/` | POST | Register new user | No |
+| `/api/auth/signin/` | POST | Login user | No |
 | `/api/auth/token/refresh/` | POST | Refresh JWT token | No |
-| `/api/auth/auth/logout/` | POST | Logout user | Yes |
+| `/api/auth/verify-phone/` | POST | Verify phone via SMS code | No |
+| `/api/auth/auth-logout/` | POST | Logout user | Yes |
 
 ### Token Storage:
 ```javascript
 // After login/signup
-localStorage.setItem('access_token', response.data.tokens.access);
-localStorage.setItem('refresh_token', response.data.tokens.refresh);
+localStorage.setItem('access_token', response.data.access_token);
+localStorage.setItem('refresh_token', response.data.refresh_token);
 
 // Add to requests
 headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` }
@@ -213,7 +228,7 @@ Returns testimonials, metrics, score ranges, and feature list.
 
 ### 1. User Signs Up
 ```javascript
-POST /api/auth/auth/signup/
+POST /api/auth/signup/
 → Store tokens in localStorage
 ```
 
@@ -345,7 +360,8 @@ axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 - **Backend URL (Dev):** `http://localhost:8000`
 - **Admin Panel:** `http://localhost:8000/admin/`
 - **Health Check:** `http://localhost:8000/health/`
-- **API Docs:** (Coming soon with Swagger)
+- **Swagger UI:** `http://localhost:8000/api/docs/`
+- **ReDoc:** `http://localhost:8000/api/docs/redoc/`
 
 ---
 

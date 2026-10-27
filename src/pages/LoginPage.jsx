@@ -1,11 +1,35 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import AuthService from '../services/AuthService.js'
 import '../styles/LoginPage.css'
+
+const getAuthErrorMessage = (error) => {
+  const responseData = error.response?.data
+
+  if (typeof responseData?.detail === 'string') return responseData.detail
+  if (typeof responseData?.message === 'string') return responseData.message
+
+  const details = responseData?.details
+  const validationMessages = details && typeof details === 'object'
+    ? Object.values(details).flatMap((value) => (
+      Array.isArray(value) ? value : [value]
+    )).filter((value) => typeof value === 'string')
+    : []
+
+  if (validationMessages.length > 0) return validationMessages[0]
+  if (typeof responseData?.error === 'string') return responseData.error
+
+  return error.message ||
+    'Authentication failed. Please check your details and try again.'
+}
 
 const LoginPage = () => {
   const navigate = useNavigate()
   const [isSignUp, setIsSignUp] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
   const [formData, setFormData] = useState({
+    phoneNumber: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -17,12 +41,45 @@ const LoginPage = () => {
       ...formData,
       [e.target.name]: e.target.value
     })
+    setErrorMessage('')
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    // Simulate authentication - navigate to dashboard
-    navigate('/dashboard')
+
+    if (isSignUp && formData.password !== formData.confirmPassword) {
+      setErrorMessage('Passwords do not match.')
+      return
+    }
+
+    setIsSubmitting(true)
+    setErrorMessage('')
+
+    try {
+      const credentials = {
+        phone_number: formData.phoneNumber.trim(),
+        password: formData.password
+      }
+
+      if (isSignUp) {
+        await AuthService.signup({
+          ...credentials,
+          password_confirm: formData.confirmPassword,
+          full_name: formData.fullName.trim(),
+          email: formData.email.trim(),
+          registration_channel: 'web',
+          preferred_language: 'en'
+        })
+      } else {
+        await AuthService.signin(credentials)
+      }
+
+      navigate('/dashboard', { replace: true })
+    } catch (error) {
+      setErrorMessage(getAuthErrorMessage(error))
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -92,15 +149,32 @@ const LoginPage = () => {
                 </div>
               )}
 
+              {isSignUp && (
+                <div className="form-group">
+                  <label htmlFor="email">Email Address</label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="you@example.com"
+                    autoComplete="email"
+                    required
+                  />
+                </div>
+              )}
+
               <div className="form-group">
-                <label htmlFor="email">Email Address</label>
+                <label htmlFor="phoneNumber">Phone Number</label>
                 <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
+                  type="tel"
+                  id="phoneNumber"
+                  name="phoneNumber"
+                  value={formData.phoneNumber}
                   onChange={handleChange}
-                  placeholder="you@example.com"
+                  placeholder="+26878123456"
+                  autoComplete="tel"
                   required
                 />
               </div>
@@ -143,8 +217,16 @@ const LoginPage = () => {
                 </div>
               )}
 
-              <button type="submit" className="btn-submit">
-                {isSignUp ? 'Create Account' : 'Sign In'}
+              {errorMessage && (
+                <p className="auth-error" role="alert">
+                  {errorMessage}
+                </p>
+              )}
+
+              <button type="submit" className="btn-submit" disabled={isSubmitting}>
+                {isSubmitting
+                  ? 'Please wait...'
+                  : isSignUp ? 'Create Account' : 'Sign In'}
               </button>
 
               <div className="divider">

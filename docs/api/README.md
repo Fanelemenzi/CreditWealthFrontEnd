@@ -133,7 +133,7 @@ sequenceDiagram
     participant F as Frontend
     participant B as Backend
     
-    F->>B: POST /api/auth/auth/signup/
+    F->>B: POST /api/auth/signup/
     B->>F: {access_token, refresh_token}
     F->>F: Store tokens in localStorage
     
@@ -154,9 +154,9 @@ sequenceDiagram
 
 ### Authentication
 ```
-POST /api/auth/auth/signup/          # Sign up
-POST /api/auth/auth/signin/          # Sign in
-POST /api/auth/auth/logout/          # Logout
+POST /api/auth/signup/               # Sign up
+POST /api/auth/signin/               # Sign in
+POST /api/auth/auth-logout/          # Logout
 POST /api/auth/token/refresh/        # Refresh token
 ```
 
@@ -257,17 +257,21 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,https://yourfrontend.com
 
 ```javascript
 // 1. User signs up
-const signupData = await fetch('http://localhost:8000/api/auth/auth/signup/', {
+const signupData = await fetch('http://localhost:8000/api/auth/signup/', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
     phone_number: '+26878123456',
     password: 'SecurePass123!',
-    full_name: 'John Doe'
+    password_confirm: 'SecurePass123!',
+    email: 'john@example.com',
+    full_name: 'John Doe',
+    registration_channel: 'web'
   })
 });
-const { tokens } = await signupData.json();
-localStorage.setItem('access_token', tokens.access);
+const authData = await signupData.json();
+localStorage.setItem('access_token', authData.access_token);
+localStorage.setItem('refresh_token', authData.refresh_token);
 
 // 2. Get active session
 const sessionData = await fetch('http://localhost:8000/api/assessment-sessions/active-session/', {
@@ -327,7 +331,7 @@ curl http://localhost:8000/health/
 
 ### Test Authentication
 ```bash
-curl -X POST http://localhost:8000/api/auth/auth/signin/ \
+curl -X POST http://localhost:8000/api/auth/signin/ \
   -H "Content-Type: application/json" \
   -d '{"phone_number": "+26878123456", "password": "yourpassword"}'
 ```

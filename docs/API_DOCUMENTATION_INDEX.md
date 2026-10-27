@@ -237,12 +237,15 @@ curl http://localhost:8000/health/
 
 ### 2. Signup Test
 ```bash
-curl -X POST http://localhost:8000/api/auth/auth/signup/ \
+curl -X POST http://localhost:8000/api/auth/signup/ \
   -H "Content-Type: application/json" \
   -d '{
     "phone_number": "+26878123456",
     "password": "SecurePass123!",
-    "full_name": "Test User"
+    "password_confirm": "SecurePass123!",
+    "email": "test@example.com",
+    "full_name": "Test User",
+    "registration_channel": "web"
   }'
 ```
 
@@ -326,7 +329,7 @@ Before starting development, ensure you:
 
 ### User Signs Up
 ```javascript
-POST /api/auth/auth/signup/
+POST /api/auth/signup/
 → Store tokens
 → Redirect to assessment
 ```

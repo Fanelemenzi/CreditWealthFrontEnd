@@ -103,14 +103,17 @@ export default apiClient;
 
 ### 1. User Signup
 
-**Endpoint:** `POST /api/auth/auth/signup/`
+**Endpoint:** `POST /api/auth/signup/`
 
 **Request Body:**
 ```json
 {
   "phone_number": "+26878123456",
   "password": "SecurePass123!",
+  "password_confirm": "SecurePass123!",
+  "email": "john@example.com",
   "full_name": "John Doe",
+  "registration_channel": "web",
   "preferred_language": "en"
 }
 ```
@@ -118,19 +121,13 @@ export default apiClient;
 **Response (Success - 201):**
 ```json
 {
-  "success": true,
-  "message": "User registered successfully",
-  "user": {
-    "id": "uuid-here",
-    "phone_number": "+26878123456",
-    "full_name": "John Doe",
-    "preferred_language": "en",
-    "is_phone_verified": false
-  },
-  "tokens": {
-    "access": "jwt-access-token",
-    "refresh": "jwt-refresh-token"
-  }
+  "message": "User registered successfully.",
+  "user_id": "uuid-here",
+  "phone_number": "+26878123456",
+  "access_token": "jwt-access-token",
+  "refresh_token": "jwt-refresh-token",
+  "token_type": "Bearer",
+  "expires_in": 3600
 }
 ```
 
@@ -142,11 +139,11 @@ import apiClient from './api';
 
 async function signup(userData) {
   try {
-    const response = await apiClient.post('/api/auth/auth/signup/', userData);
+    const response = await apiClient.post('/api/auth/signup/', userData);
     
     // Store tokens
-    localStorage.setItem('access_token', response.data.tokens.access);
-    localStorage.setItem('refresh_token', response.data.tokens.refresh);
+    localStorage.setItem('access_token', response.data.access_token);
+    localStorage.setItem('refresh_token', response.data.refresh_token);
     
     return response.data;
   } catch (error) {
@@ -160,7 +157,7 @@ async function signup(userData) {
 
 ### 2. User Signin
 
-**Endpoint:** `POST /api/auth/auth/signin/`
+**Endpoint:** `POST /api/auth/signin/`
 
 **Request Body:**
 ```json
@@ -173,19 +170,13 @@ async function signup(userData) {
 **Response (Success - 200):**
 ```json
 {
-  "success": true,
-  "message": "Login successful",
-  "user": {
-    "id": "uuid-here",
-    "phone_number": "+26878123456",
-    "full_name": "John Doe",
-    "preferred_language": "en",
-    "is_phone_verified": true
-  },
-  "tokens": {
-    "access": "jwt-access-token",
-    "refresh": "jwt-refresh-token"
-  }
+  "message": "Authentication successful.",
+  "user_id": "uuid-here",
+  "phone_number": "+26878123456",
+  "access_token": "jwt-access-token",
+  "refresh_token": "jwt-refresh-token",
+  "token_type": "Bearer",
+  "expires_in": 3600
 }
 ```
 
@@ -215,7 +206,7 @@ async function signup(userData) {
 
 ### 4. Logout
 
-**Endpoint:** `POST /api/auth/auth/logout/`
+**Endpoint:** `POST /api/auth/auth-logout/`
 
 **Headers Required:** `Authorization: Bearer {access_token}`
 
@@ -231,7 +222,7 @@ async function signup(userData) {
 ```javascript
 async function logout() {
   try {
-    await apiClient.post('/api/auth/auth/logout/');
+    await apiClient.post('/api/auth/auth-logout/');
     
     // Clear local storage
     localStorage.removeItem('access_token');
@@ -1019,14 +1010,16 @@ export default AssessmentForm;
 ## CORS Configuration
 
 The backend is configured to accept requests from:
-- `http://localhost:3000` (React default)
+- `http://localhost:5173` (Vite default ✅)
+- `http://127.0.0.1:5173`
+- `http://localhost:3000` (Create React App default)
 - `http://127.0.0.1:3000`
 - `http://localhost:8080`
 
-**To add more origins**, update the `.env` file:
+**To add more origins**, update `CORS_ALLOWED_ORIGINS` in the backend `.env` file:
 
 ```env
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080,https://yourfrontend.com
+CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000,https://yourfrontend.com
 ```
 
 ---
@@ -1048,5 +1041,7 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:8080,https://yourfro
 - **API Base URL (Dev):** `http://localhost:8000`
 - **Django Admin:** `http://localhost:8000/admin/`
 - **Health Check:** `http://localhost:8000/health/`
+- **Swagger UI (API Docs):** `http://localhost:8000/api/docs/`
+- **ReDoc:** `http://localhost:8000/api/docs/redoc/`
 
 For questions or issues, contact the backend team.

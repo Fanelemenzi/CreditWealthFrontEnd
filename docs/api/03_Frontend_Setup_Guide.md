@@ -18,6 +18,14 @@ my-frontend-project/
 
 #### 2. Add backend URL to `.env`
 
+**For Vite (React + Vite):**
+```env
+# .env file
+VITE_API_BASE_URL=http://localhost:8000
+VITE_API_TIMEOUT=30000
+```
+
+**For Create React App:**
 ```env
 # .env file
 REACT_APP_API_BASE_URL=http://localhost:8000
@@ -25,12 +33,20 @@ REACT_APP_API_TIMEOUT=30000
 ```
 
 **Important:** 
-- React requires environment variables to start with `REACT_APP_`
+- Vite env vars must start with `VITE_`; CRA vars must start with `REACT_APP_`
 - Don't commit `.env` to git (add it to `.gitignore`)
 - Create `.env.example` for team reference
 
 #### 3. Create `.env.example` (for team reference)
 
+**Vite:**
+```env
+# .env.example
+VITE_API_BASE_URL=http://localhost:8000
+VITE_API_TIMEOUT=30000
+```
+
+**Create React App:**
 ```env
 # .env.example
 REACT_APP_API_BASE_URL=http://localhost:8000
@@ -93,45 +109,52 @@ frontend-project/
 // src/config/api.config.js
 
 // Read from environment variables
+// Vite uses import.meta.env.VITE_*; CRA uses process.env.REACT_APP_*
+const BASE_URL =
+  (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) ||
+  process.env?.REACT_APP_API_BASE_URL ||
+  'http://localhost:8000';
+
 export const API_CONFIG = {
-  baseURL: process.env.REACT_APP_API_BASE_URL || 'http://localhost:8000',
-  timeout: parseInt(process.env.REACT_APP_API_TIMEOUT) || 30000,
+  baseURL: BASE_URL,
+  timeout: 30000,
   withCredentials: true, // Enable cookies for CORS
 };
 
-// API endpoints
+// API endpoints — all correct paths as of backend v1.0
 export const API_ENDPOINTS = {
   // Authentication
   AUTH: {
-    SIGNUP: '/api/auth/auth/signup/',
-    SIGNIN: '/api/auth/auth/signin/',
-    LOGOUT: '/api/auth/auth/logout/',
-    REFRESH: '/api/auth/token/refresh/',
+    SIGNUP:        '/api/auth/signup/',
+    SIGNIN:        '/api/auth/signin/',
+    LOGOUT:        '/api/auth/auth-logout/',
+    REFRESH:       '/api/auth/token/refresh/',
+    VERIFY_PHONE:  '/api/auth/verify-phone/',
   },
   
   // Assessment Sessions
   ASSESSMENT: {
-    CREATE: '/api/assessment-sessions/',
-    ACTIVE: '/api/assessment-sessions/active-session/',
-    DETAIL: (id) => `/api/assessment-sessions/${id}/`,
-    SAVE_ANSWER: (id) => `/api/assessment-sessions/${id}/save_answer/`,
+    CREATE:        '/api/assessment-sessions/',
+    ACTIVE:        '/api/assessment-sessions/active-session/',
+    DETAIL:        (id) => `/api/assessment-sessions/${id}/`,
+    SAVE_ANSWER:   (id) => `/api/assessment-sessions/${id}/save_answer/`,
     SAVE_MULTIPLE: (id) => `/api/assessment-sessions/${id}/save_multiple_answers/`,
-    ADVANCE: (id) => `/api/assessment-sessions/${id}/advance_question/`,
-    GO_BACK: (id) => `/api/assessment-sessions/${id}/go_back_question/`,
-    MARK_SECTION: (id) => `/api/assessment-sessions/${id}/mark_section_completed/`,
-    SUBMIT: (id) => `/api/assessment-sessions/${id}/mark_completed/`,
+    ADVANCE:       (id) => `/api/assessment-sessions/${id}/advance_question/`,
+    GO_BACK:       (id) => `/api/assessment-sessions/${id}/go_back_question/`,
+    MARK_SECTION:  (id) => `/api/assessment-sessions/${id}/mark_section_completed/`,
+    SUBMIT:        (id) => `/api/assessment-sessions/${id}/mark_completed/`,
   },
   
   // Score Calculation
   SCORE: {
-    CALCULATE: '/api/score-calculation/calculate/',
-    LATEST: '/api/score-calculation/latest/',
+    CALCULATE: '/api/assessments/calculate-score/',
+    LATEST:    '/api/assessments/latest-score/',
   },
   
   // Validation
   VALIDATION: {
-    FIELD: '/api/assessments/validate-field/',
-    BATCH: '/api/assessments/batch-validate/',
+    FIELD:  '/api/assessments/validate-field/',
+    BATCH:  '/api/assessments/batch-validate/',
     SCHEMA: '/api/assessments/field-schema/',
   },
   
@@ -246,11 +269,9 @@ export const authAPI = {
   signup: async (userData) => {
     const response = await apiClient.post(API_ENDPOINTS.AUTH.SIGNUP, userData);
     
-    // Store tokens
-    if (response.data.tokens) {
-      localStorage.setItem('access_token', response.data.tokens.access);
-      localStorage.setItem('refresh_token', response.data.tokens.refresh);
-    }
+    // Store tokens returned at the top level
+    localStorage.setItem('access_token', response.data.access_token);
+    localStorage.setItem('refresh_token', response.data.refresh_token);
     
     return response.data;
   },
@@ -259,11 +280,9 @@ export const authAPI = {
   signin: async (credentials) => {
     const response = await apiClient.post(API_ENDPOINTS.AUTH.SIGNIN, credentials);
     
-    // Store tokens
-    if (response.data.tokens) {
-      localStorage.setItem('access_token', response.data.tokens.access);
-      localStorage.setItem('refresh_token', response.data.tokens.refresh);
-    }
+    // Store tokens returned at the top level
+    localStorage.setItem('access_token', response.data.access_token);
+    localStorage.setItem('refresh_token', response.data.refresh_token);
     
     return response.data;
   },
@@ -625,19 +644,40 @@ export default Assessment;
 
 ## 🔄 Environment-Specific Configuration
 
-### Development
+### Development (Vite)
+```env
+VITE_API_BASE_URL=http://localhost:8000
+```
+
+### Development (Create React App)
 ```env
 REACT_APP_API_BASE_URL=http://localhost:8000
 ```
 
 ### Staging
 ```env
-REACT_APP_API_BASE_URL=https://staging-api.yourdomain.com
+VITE_API_BASE_URL=https://staging-api.yourdomain.com
 ```
 
 ### Production
 ```env
-REACT_APP_API_BASE_URL=https://api.yourdomain.com
+VITE_API_BASE_URL=https://api.yourdomain.com
+```
+
+### Vite Proxy Alternative (no CORS needed in dev)
+
+Add this to `vite.config.js` to proxy all `/api` calls to Django — no `CORS_ALLOWED_ORIGINS` config needed:
+
+```javascript
+// vite.config.js
+export default {
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8000',
+      '/health': 'http://localhost:8000',
+    },
+  },
+};
 ```
 
 ---
@@ -694,6 +734,6 @@ Now you can start building your frontend with full access to all backend feature
 - ✅ Progress tracking
 
 **Next steps:**
-1. Start the backend: `python manage.py runserver`
-2. Start your frontend: `npm start`
-3. Test the connection at `http://localhost:3000`
+1. Start the backend: `.venv\Scripts\python.exe manage.py runserver`
+2. Start your frontend: `npm run dev` (Vite) or `npm start` (CRA)
+3. Browse the live API docs: `http://localhost:8000/api/docs/`

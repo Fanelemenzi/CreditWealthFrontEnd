@@ -99,10 +99,12 @@ frontend2/
 
 ### Login Page (`/login`)
 - Toggle between Sign In and Sign Up
-- Form validation
+- Phone-number authentication using the backend signup/signin API
+- JWT access and refresh tokens stored after successful authentication
+- Form validation and visible authentication errors
 - Social authentication buttons
 - Responsive split layout
-- Demo: Enter any credentials to access dashboard
+- Successful authentication navigates to the credit-score dashboard
 
 ### Credit Score Dashboard (`/dashboard`)
 - **Main Feature**: Large animated circular score graphic (724 score example)
