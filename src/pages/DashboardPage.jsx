@@ -1,29 +1,142 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import BrandLogo from '../components/BrandLogo';
+import BusinessScoreView from '../components/BusinessScoreView';
 import ScoreCircle from '../components/ScoreCircle';
+import ScoreScale from '../components/ScoreScale';
 import PillarBreakdown from '../components/PillarBreakdown';
 import ValidationFlags from '../components/ValidationFlags';
 import Recommendations from '../components/Recommendations';
 import ScoreService from '../services/ScoreService';
+import BusinessScoreService from '../services/BusinessScoreService';
+import { logOut } from '../services/auth.js';
+import { useAuth } from '../AuthContext.jsx';
+import EmailVerificationPrompt from '../components/EmailVerificationPrompt.jsx';
+import { getMe } from '../services/api.js';
+import { PERSONAL_PILLARS, getPersonalBand } from '../config/personalScore';
+import { getBusinessTier, getBusinessTierById } from '../config/businessScore';
 import '../styles/CreditScorePage.css';
+import '../styles/NewDesign.css';
+import '../styles/Redesign.css';
 
 /**
- * DashboardPage - Main credit score dashboard interface
- * 
+ * Get sample data for preview mode
+ * Validates Requirement: 1.7
+ */
+const getSampleData = () => ({
+  composite_score: 680,
+  score_band: 'good',
+  score_band_display: 'Good (650-749)',
+  calculated_at: new Date().toISOString(),
+  pillar_scores: {
+    financial_obligations: 72,
+    income_employment: 85,
+    mobile_money: 65,
+    assets: 60,
+    savings_banking: 70,
+    expense_management: 68,
+    household_profile: 75,
+    financial_literacy: 62,
+    business_profile: 55
+  },
+  pillar_breakdown: {
+    financial_obligations: { score: 72, weight: 15, contribution: 10.8, status: 'good' },
+    income_employment: { score: 85, weight: 15, contribution: 12.75, status: 'excellent' },
+    mobile_money: { score: 65, weight: 12, contribution: 7.8, status: 'fair' },
+    assets: { score: 60, weight: 12, contribution: 7.2, status: 'fair' },
+    savings_banking: { score: 70, weight: 12, contribution: 8.4, status: 'good' },
+    expense_management: { score: 68, weight: 12, contribution: 8.16, status: 'good' },
+    household_profile: { score: 75, weight: 8, contribution: 6.0, status: 'good' },
+    financial_literacy: { score: 62, weight: 8, contribution: 4.96, status: 'fair' },
+    business_profile: { score: 55, weight: 6, contribution: 3.3, status: 'fair' }
+  },
+  validation_flags: [],
+  recommendations: [
+    {
+      title: 'Complete Your Assessment',
+      description: 'Take the full financial assessment to get your actual credit score and personalized recommendations.'
+    }
+  ],
+  honesty_bonus: 0,
+  validation_adjustment: 0,
+  is_sufficient_data: false,
+  missing_sections: [],
+  score_id: 'preview'
+});
+
+const BUSINESS_SCORE_ENABLED = import.meta.env.VITE_ENABLE_BUSINESS_SCORE === 'true';
+
+// The highest and lowest scoring pillars, shown beside the score
+const getPillarHighlights = (breakdown) => {
+  const scored = PERSONAL_PILLARS
+    .filter((pillar) => breakdown?.[pillar.key])
+    .map((pillar) => ({ label: pillar.label, score: breakdown[pillar.key].score || 0 }));
+  if (scored.length === 0) return null;
+
+  const byScore = [...scored].sort((a, b) => b.score - a.score);
+  return { strongest: byScore[0], focus: byScore[byScore.length - 1] };
+};
+
+/**
+ * Compact pointer to the business score, secondary to the personal score
+ */
+const BusinessTeaser = ({ status, result, onOpen }) => {
+  if (status === 'ready') {
+    const score = Math.round(result.final_bvss);
+    const tier = getBusinessTierById(result.risk_tier) || getBusinessTier(score);
+    return (
+      <aside className="dash-teaser cw-card">
+        <p className="cw-eyebrow">Business Viability Score</p>
+        <p className="dash-teaser-score">
+          {score}<span>/ 1000</span>
+        </p>
+        <p>{tier.label} tier ({tier.id})</p>
+        <button type="button" className="cw-btn cw-btn-ghost" onClick={onOpen}>View business score</button>
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="dash-teaser cw-card">
+      <p className="cw-eyebrow">Business Viability Score</p>
+      <h3>{status === 'pending' ? 'Your business score is being prepared' : 'Run a business?'}</h3>
+      {status !== 'pending' && (
+        <p>See how ready your small business or startup is for finance. It’s separate from your personal score.</p>
+      )}
+      <button type="button" className="cw-btn cw-btn-ghost" onClick={onOpen}>Explore business score</button>
+    </aside>
+  );
+};
+
+/**
+ * DashboardPage - personal credit score first, with the business score one click away
+ *
  * Features:
  * - Authentication check on mount
  * - Fetch and display credit score data
  * - Preview mode when no score exists
  * - Display score visualization, pillar breakdown, validation flags, and recommendations
- * 
+ * - Business Viability Score view at /dashboard?view=business
+ *
  * Validates Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.1, 2.2, 2.3, 2.4, 10.1, 10.3
  */
 const DashboardPage = () => {
   const navigate = useNavigate();
+  const { firebaseUser, setProfile } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [score, setScore] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [businessStatus, setBusinessStatus] = useState(
+    BUSINESS_SCORE_ENABLED ? 'loading' : 'unavailable'
+  );
+  const [businessResult, setBusinessResult] = useState(null);
+  const [isEmailVerified, setIsEmailVerified] = useState(
+    Boolean(firebaseUser?.emailVerified)
+  );
+
+  const activeView = searchParams.get('view') === 'business' ? 'business' : 'personal';
 
   useEffect(() => {
     // Check authentication on mount (Requirement 2.1, 10.1)
@@ -36,19 +149,22 @@ const DashboardPage = () => {
 
     // Fetch score data
     fetchScoreData();
+    if (BUSINESS_SCORE_ENABLED) {
+      fetchBusinessData();
+    }
   }, [navigate]);
 
   /**
    * Fetch score data from backend
    * Handles 404 (no score), 401 (unauthorized), and network errors
-   * 
+   *
    * Validates Requirements: 2.2, 2.3, 2.4, 9.1
    */
   const fetchScoreData = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Retrieve score from backend (Requirement 2.4)
       const data = await ScoreService.getLatestScore();
       setScore(data);
@@ -58,15 +174,18 @@ const DashboardPage = () => {
         // No score exists - enable preview mode (Requirement 1.7)
         setIsPreviewMode(true);
         setScore(getSampleData());
-      } else if (err.response?.status === 401) {
+      } else if (err.response?.status === 401 && isEmailVerified) {
         // Authentication failed - redirect to login (Requirement 2.3)
         localStorage.removeItem('access_token');
         localStorage.removeItem('refresh_token');
         navigate('/login');
       } else if (!err.response) {
-        // Network error - no response from server (Requirement 9.1)
-        setError('Network error. Please check your connection and try again.');
-        console.error('Network error:', err);
+        setError(
+          err.code === 'ERR_NETWORK'
+            ? 'The score service is unavailable. Please make sure the backend is running and try again.'
+            : 'Network error. Please check your connection and try again.'
+        );
+        console.error('Score service network error:', err);
       } else if (err.response?.status >= 500) {
         // Server error - 500-level status codes (Requirement 9.3)
         setError('Server error. Our system is experiencing issues. Please try again later.');
@@ -82,6 +201,26 @@ const DashboardPage = () => {
   };
 
   /**
+   * Fetch the business score separately, so a problem here never blocks the
+   * personal score.
+   */
+  const fetchBusinessData = async () => {
+    try {
+      const result = await BusinessScoreService.getLatestResult();
+      if (!result) {
+        setBusinessStatus('none');
+      } else if (result.pending) {
+        setBusinessStatus('pending');
+      } else {
+        setBusinessResult(result);
+        setBusinessStatus('ready');
+      }
+    } catch (err) {
+      setBusinessStatus('unavailable');
+    }
+  };
+
+  /**
    * Navigate to assessment page
    * Validates Requirement: 1.9
    */
@@ -92,92 +231,31 @@ const DashboardPage = () => {
   /**
    * Handle logout
    */
-  const handleLogout = () => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+  const handleLogout = async () => {
+    await logOut();
     navigate('/');
   };
 
-  /**
-   * Get sample data for preview mode
-   * Validates Requirement: 1.7
-   */
-  const getSampleData = () => {
-    return {
-      composite_score: 680,
-      score_band: 'good',
-      score_band_display: 'Good (650-749)',
-      calculated_at: new Date().toISOString(),
-      pillar_scores: {
-        financial_obligations: 72,
-        income_employment: 85,
-        mobile_money: 65,
-        assets: 60,
-        savings_banking: 70,
-        expense_management: 68,
-        household_profile: 75,
-        financial_literacy: 62,
-        business_profile: 55
-      },
-      pillar_breakdown: {
-        financial_obligations: { score: 72, weight: 15, contribution: 10.8, status: 'good' },
-        income_employment: { score: 85, weight: 15, contribution: 12.75, status: 'excellent' },
-        mobile_money: { score: 65, weight: 12, contribution: 7.8, status: 'fair' },
-        assets: { score: 60, weight: 12, contribution: 7.2, status: 'fair' },
-        savings_banking: { score: 70, weight: 12, contribution: 8.4, status: 'good' },
-        expense_management: { score: 68, weight: 12, contribution: 8.16, status: 'good' },
-        household_profile: { score: 75, weight: 8, contribution: 6.0, status: 'good' },
-        financial_literacy: { score: 62, weight: 8, contribution: 4.96, status: 'fair' },
-        business_profile: { score: 55, weight: 6, contribution: 3.3, status: 'fair' }
-      },
-      validation_flags: [],
-      recommendations: [
-        {
-          title: 'Complete Your Assessment',
-          description: 'Take the full financial assessment to get your actual credit score and personalized recommendations.',
-          impact: 0
-        }
-      ],
-      honesty_bonus: 0,
-      validation_adjustment: 0,
-      is_sufficient_data: false,
-      missing_sections: [],
-      score_id: 'preview'
-    };
+  const handleEmailVerified = async () => {
+    setIsEmailVerified(true);
+    try {
+      setProfile(await getMe());
+    } catch (profileError) {
+      console.error('Could not load verified user profile:', profileError);
+    }
   };
 
-  // Get score band color
-  const getScoreBandColor = (scoreValue) => {
-    if (scoreValue >= 750) return '#10b981'; // Excellent
-    if (scoreValue >= 650) return '#84cc16'; // Good
-    if (scoreValue >= 550) return '#eab308'; // Fair
-    if (scoreValue >= 450) return '#f97316'; // Weak
-    return '#ef4444'; // Poor
-  };
-
-  // Get score band label
-  const getScoreBandLabel = (scoreValue) => {
-    if (scoreValue >= 750) return 'Excellent';
-    if (scoreValue >= 650) return 'Good';
-    if (scoreValue >= 550) return 'Fair';
-    if (scoreValue >= 450) return 'Weak';
-    return 'Poor';
+  const showView = (view) => {
+    setSearchParams(view === 'business' ? { view: 'business' } : {});
+    window.scrollTo(0, 0);
   };
 
   // Loading state
   if (loading) {
     return (
-      <div className="credit-score-page">
-        <nav className="dashboard-nav">
-          <div className="nav-container">
-            <div className="logo">
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="16" cy="16" r="14" stroke="#4f46e5" strokeWidth="3" />
-                <path d="M16 8v8l5 3" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <span className="logo-text">CreditScore</span>
-            </div>
-          </div>
+      <div className="credit-score-page dashboard-redesign dash">
+        <nav className="dash-nav" aria-label="Main">
+          <div className="dash-wrap dash-nav-inner"><BrandLogo /></div>
         </nav>
         <div className="dashboard-container">
           <div className="loading-container">
@@ -192,17 +270,9 @@ const DashboardPage = () => {
   // Error state
   if (error && !isPreviewMode) {
     return (
-      <div className="credit-score-page">
-        <nav className="dashboard-nav">
-          <div className="nav-container">
-            <div className="logo">
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="16" cy="16" r="14" stroke="#4f46e5" strokeWidth="3" />
-                <path d="M16 8v8l5 3" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-              <span className="logo-text">CreditScore</span>
-            </div>
-          </div>
+      <div className="credit-score-page dashboard-redesign dash">
+        <nav className="dash-nav" aria-label="Main">
+          <div className="dash-wrap dash-nav-inner"><BrandLogo /></div>
         </nav>
         <div className="dashboard-container">
           <div className="error-container">
@@ -217,142 +287,135 @@ const DashboardPage = () => {
     );
   }
 
-  return (
-    <div className="credit-score-page">
-      {/* Navigation Bar */}
-      <nav className="dashboard-nav">
-        <div className="nav-container">
-          <div className="logo">
-            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="16" cy="16" r="14" stroke="#4f46e5" strokeWidth="3" />
-              <path d="M16 8v8l5 3" stroke="#4f46e5" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-            <span className="logo-text">CreditScore</span>
-          </div>
-          <div className="nav-actions">
-            <button className="icon-button">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-            <button className="icon-button user-avatar">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-          </div>
-        </div>
-      </nav>
+  const band = getPersonalBand(score.composite_score);
+  const highlights = getPillarHighlights(score.pillar_breakdown);
 
-      <div className="dashboard-container">
-        {/* Dashboard Header */}
-        <div className="dashboard-header">
-          <div>
-            <h1>Your Credit Health</h1>
-            <p className="dashboard-subtitle">
-              {isPreviewMode ? 'Preview Mode - Sample Data' : `Last updated: ${new Date(score.calculated_at).toLocaleDateString()}`}
-            </p>
+  return (
+    <div className="credit-score-page dashboard-redesign dash">
+      <nav className="dash-nav" aria-label="Main">
+        <div className="dash-wrap dash-nav-inner">
+          <BrandLogo />
+          <div className="dash-switch" role="group" aria-label="Choose a score">
+            <button
+              type="button"
+              aria-current={activeView === 'personal' ? 'page' : undefined}
+              onClick={() => showView('personal')}
+            >
+              Personal
+            </button>
+            <button
+              type="button"
+              aria-current={activeView === 'business' ? 'page' : undefined}
+              onClick={() => showView('business')}
+            >
+              Business
+            </button>
           </div>
-          <button onClick={handleLogout} className="btn-outline">
+          <button type="button" onClick={handleLogout} className="cw-btn cw-btn-ghost dash-logout">
             Logout
           </button>
         </div>
+      </nav>
 
-        {/* Preview Mode Banner - Requirement 1.7, 1.8 */}
-        {isPreviewMode && (
-          <div className="preview-banner">
-            <div className="preview-content">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <div>
-                <h3>This is a Preview</h3>
-                <p>Complete the assessment to see your actual credit score</p>
-              </div>
-            </div>
-            <button onClick={handleTakeAssessment} className="btn-primary">
-              Take Assessment
-            </button>
-          </div>
+      <main className="dash-wrap dash-main">
+        {!isEmailVerified && (
+          <EmailVerificationPrompt
+            email={firebaseUser?.email}
+            onVerified={handleEmailVerified}
+          />
         )}
+        {activeView === 'business' ? (
+          <BusinessScoreView status={businessStatus} result={businessResult} />
+        ) : (
+          <>
+            <header className="dash-header">
+              <div>
+                <h1>Your Credit Health</h1>
+                <p>
+                  {isPreviewMode
+                    ? 'Preview Mode - Sample Data'
+                    : `Last updated: ${new Date(score.calculated_at).toLocaleDateString()}`}
+                </p>
+              </div>
+            </header>
 
-        <div className="dashboard-grid">
-          {/* Main Score Card - Requirements 1.1, 1.2, 1.3 */}
-          <div className="score-card main-score-card">
-            <div className="card-header">
-              <h2>Your Credit Score</h2>
-              {!isPreviewMode && (
-                <div className="score-badge" style={{ color: getScoreBandColor(score.composite_score) }}>
-                  {getScoreBandLabel(score.composite_score)}
+            {/* Preview Mode Banner - Requirement 1.7, 1.8 */}
+            {isPreviewMode && (
+              <div className="dash-preview">
+                <div>
+                  <h3>This is a Preview</h3>
+                  <p>Complete the assessment to see your actual credit score</p>
                 </div>
-              )}
-            </div>
-
-            <ScoreCircle score={score.composite_score} animated={true} />
-
-            <div className="score-breakdown">
-              <div className="breakdown-item">
-                <div className="breakdown-label">Poor</div>
-                <div className="breakdown-bar">
-                  <div className="breakdown-range poor"></div>
-                </div>
-                <div className="breakdown-range-text">300-449</div>
-              </div>
-              <div className="breakdown-item">
-                <div className="breakdown-label">Weak</div>
-                <div className="breakdown-bar">
-                  <div className="breakdown-range" style={{ background: '#f97316', width: '100%' }}></div>
-                </div>
-                <div className="breakdown-range-text">450-549</div>
-              </div>
-              <div className="breakdown-item">
-                <div className="breakdown-label">Fair</div>
-                <div className="breakdown-bar">
-                  <div className="breakdown-range fair"></div>
-                </div>
-                <div className="breakdown-range-text">550-649</div>
-              </div>
-              <div className="breakdown-item">
-                <div className="breakdown-label">Good</div>
-                <div className="breakdown-bar">
-                  <div className="breakdown-range good"></div>
-                </div>
-                <div className="breakdown-range-text">650-749</div>
-              </div>
-              <div className="breakdown-item">
-                <div className="breakdown-label">Excellent</div>
-                <div className="breakdown-bar">
-                  <div className="breakdown-range excellent"></div>
-                </div>
-                <div className="breakdown-range-text">750-850</div>
-              </div>
-            </div>
-
-            {!isPreviewMode && (
-              <div className="score-actions">
-                <button onClick={handleTakeAssessment} className="btn-outline">
-                  Retake Assessment
+                <button onClick={handleTakeAssessment} className="cw-btn cw-btn-primary">
+                  Take Assessment
                 </button>
               </div>
             )}
-          </div>
 
-          {/* Pillar Breakdown - Requirement 1.4 */}
-          <div className="pillar-card">
-            <PillarBreakdown pillarBreakdown={score.pillar_breakdown} />
-          </div>
+            {/* Main Score - Requirements 1.1, 1.2, 1.3 */}
+            <section className="dash-hero" aria-label="Your credit score">
+              <div className="cw-ring cw-ring-dark">
+                <ScoreCircle score={score.composite_score} animated={true} />
+              </div>
+              <div className="dash-hero-detail">
+                <p className="dash-hero-eyebrow">{isPreviewMode ? 'Sample credit score' : 'Your credit score'}</p>
+                <h2>{band.label}</h2>
+                <p className="dash-hero-range">
+                  {band.label} scores run from {band.min} to {band.max}.
+                </p>
+                <ScoreScale score={score.composite_score} />
+                {highlights && (
+                  <dl className="dash-highlights">
+                    <div>
+                      <dt>Strongest pillar</dt>
+                      <dd>{highlights.strongest.label}</dd>
+                    </div>
+                    <div>
+                      <dt>Focus next on</dt>
+                      <dd>{highlights.focus.label}</dd>
+                    </div>
+                  </dl>
+                )}
+                {!isPreviewMode && (
+                  <button onClick={handleTakeAssessment} className="cw-btn cw-btn-light">
+                    Retake Assessment
+                  </button>
+                )}
+              </div>
+            </section>
 
-          {/* Validation Flags - Requirement 1.5 */}
-          {score.validation_flags && score.validation_flags.length > 0 && (
-            <div className="validation-card">
-              <ValidationFlags validationFlags={score.validation_flags} />
+            <div className="dash-grid">
+              <div className="dash-column">
+                {/* Pillar Breakdown - Requirement 1.4 */}
+                <section className="cw-card">
+                  <PillarBreakdown pillarBreakdown={score.pillar_breakdown} />
+                </section>
+
+                {/* Validation Flags - Requirement 1.5 */}
+                {score.validation_flags && score.validation_flags.length > 0 && (
+                  <section className="cw-card">
+                    <ValidationFlags validationFlags={score.validation_flags} />
+                  </section>
+                )}
+              </div>
+
+              <div className="dash-column">
+                {/* Recommendations - Requirement 1.6 */}
+                <section className="cw-card">
+                  <h3 className="cw-card-title">Your next steps</h3>
+                  <Recommendations recommendations={score.recommendations} />
+                </section>
+
+                <BusinessTeaser
+                  status={businessStatus}
+                  result={businessResult}
+                  onOpen={() => showView('business')}
+                />
+              </div>
             </div>
-          )}
-
-          {/* Recommendations - Requirement 1.6 */}
-          <Recommendations recommendations={score.recommendations} />
-        </div>
-      </div>
+          </>
+        )}
+      </main>
     </div>
   );
 };

@@ -1,9 +1,11 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import AuthService from '../services/AuthService.js'
+import { getAuthErrorMessage } from '../services/authErrors.js'
 import '../styles/LoginPage.css'
+import '../styles/NewDesign.css'
 
-const getAuthErrorMessage = (error) => {
+const getApiAuthErrorMessage = (error) => {
   const responseData = error.response?.data
 
   if (typeof responseData?.detail === 'string') return responseData.detail
@@ -19,21 +21,28 @@ const getAuthErrorMessage = (error) => {
   if (validationMessages.length > 0) return validationMessages[0]
   if (typeof responseData?.error === 'string') return responseData.error
 
-  return error.message ||
-    'Authentication failed. Please check your details and try again.'
+  // DRF validation errors, such as { "national_id": ["..."] }
+  const fieldMessages = responseData && typeof responseData === 'object'
+    ? Object.values(responseData).flat().filter((value) => typeof value === 'string')
+    : []
+
+  if (fieldMessages.length > 0) return fieldMessages[0]
+
+  return error.message || 'Authentication failed. Please check your details and try again.'
 }
 
 const LoginPage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [isSignUp, setIsSignUp] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [formData, setFormData] = useState({
-    phoneNumber: '',
     email: '',
     password: '',
     confirmPassword: '',
-    fullName: ''
+    firstName: '',
+    lastName: '',
   })
 
   const handleChange = (e) => {
@@ -57,30 +66,49 @@ const LoginPage = () => {
 
     try {
       const credentials = {
-        phone_number: formData.phoneNumber.trim(),
+        email: formData.email.trim(),
         password: formData.password
       }
 
       if (isSignUp) {
-        await AuthService.signup({
-          ...credentials,
-          password_confirm: formData.confirmPassword,
-          full_name: formData.fullName.trim(),
-          email: formData.email.trim(),
-          registration_channel: 'web',
-          preferred_language: 'en'
-        })
+        await AuthService.signup({ ...credentials, first_name: formData.firstName.trim(), last_name: formData.lastName.trim() })
+        navigate(location.state?.redirectTo || '/dashboard', { replace: true })
       } else {
         await AuthService.signin(credentials)
+        navigate(location.state?.redirectTo || '/dashboard', { replace: true })
       }
-
-      navigate('/dashboard', { replace: true })
     } catch (error) {
-      setErrorMessage(getAuthErrorMessage(error))
+      setErrorMessage(error.code ? getAuthErrorMessage(error) : getApiAuthErrorMessage(error))
     } finally {
       setIsSubmitting(false)
     }
   }
+
+  const handleGoogleSignIn = async () => {
+      setIsSubmitting(true)
+      setErrorMessage('')
+      try {
+        await AuthService.googleSignin()
+        navigate(location.state?.redirectTo || '/dashboard', { replace: true })
+      } catch (error) {
+        setErrorMessage(getAuthErrorMessage(error))
+      } finally {
+        setIsSubmitting(false)
+      }
+    }
+
+  const handleResetPassword = async () => {
+      if (!formData.email.trim()) {
+        setErrorMessage('Enter your email address first.')
+        return
+      }
+      try {
+        await AuthService.resetPassword(formData.email.trim())
+        setErrorMessage('If that email is registered, a reset link is on its way.')
+      } catch (error) {
+        setErrorMessage(getAuthErrorMessage(error))
+      }
+    }
 
   return (
     <div className="login-page">
@@ -136,14 +164,14 @@ const LoginPage = () => {
             <form onSubmit={handleSubmit} className="login-form">
               {isSignUp && (
                 <div className="form-group">
-                  <label htmlFor="fullName">Full Name</label>
+                  <label htmlFor="firstName">First Name</label>
                   <input
                     type="text"
-                    id="fullName"
-                    name="fullName"
-                    value={formData.fullName}
+                    id="firstName"
+                    name="firstName"
+                    value={formData.firstName}
                     onChange={handleChange}
-                    placeholder="John Doe"
+                    autoComplete="given-name"
                     required
                   />
                 </div>
@@ -151,30 +179,28 @@ const LoginPage = () => {
 
               {isSignUp && (
                 <div className="form-group">
-                  <label htmlFor="email">Email Address</label>
+                  <label htmlFor="lastName">Last Name</label>
                   <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
+                    type="text"
+                    id="lastName"
+                    name="lastName"
+                    value={formData.lastName}
                     onChange={handleChange}
-                    placeholder="you@example.com"
-                    autoComplete="email"
+                    autoComplete="family-name"
                     required
                   />
                 </div>
               )}
 
               <div className="form-group">
-                <label htmlFor="phoneNumber">Phone Number</label>
+                <label htmlFor="email">Email address</label>
                 <input
-                  type="tel"
-                  id="phoneNumber"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
                   onChange={handleChange}
-                  placeholder="+26878123456"
-                  autoComplete="tel"
+                  autoComplete="email"
                   required
                 />
               </div>
@@ -188,6 +214,7 @@ const LoginPage = () => {
                   value={formData.password}
                   onChange={handleChange}
                   placeholder="••••••••"
+                  minLength={isSignUp ? 8 : undefined}
                   required
                 />
               </div>
@@ -213,7 +240,7 @@ const LoginPage = () => {
                     <input type="checkbox" />
                     <span>Remember me</span>
                   </label>
-                  <a href="#forgot" className="forgot-link">Forgot password?</a>
+                  <button type="button" className="forgot-link" onClick={handleResetPassword}>Forgot password?</button>
                 </div>
               )}
 
@@ -234,7 +261,7 @@ const LoginPage = () => {
               </div>
 
               <div className="social-buttons">
-                <button type="button" className="btn-social">
+                <button type="button" className="btn-social" onClick={handleGoogleSignIn} disabled={isSubmitting}>
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
                     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -242,12 +269,6 @@ const LoginPage = () => {
                     <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                   </svg>
                   Google
-                </button>
-                <button type="button" className="btn-social">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                  </svg>
-                  Facebook
                 </button>
               </div>
 

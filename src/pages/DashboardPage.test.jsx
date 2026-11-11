@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import DashboardPage from './DashboardPage';
 import ScoreService from '../services/ScoreService';
@@ -118,8 +118,9 @@ describe('DashboardPage Component Integration', () => {
 
     // Verify PillarBreakdown is rendered (Requirement 1.4)
     expect(screen.getByText('Financial Pillars Breakdown')).toBeInTheDocument();
-    expect(screen.getByText('Financial Obligations')).toBeInTheDocument();
-    expect(screen.getByText('Income & Employment')).toBeInTheDocument();
+    const pillarSection = within(document.querySelector('.pillar-breakdown'));
+    expect(pillarSection.getByText('Financial Obligations')).toBeInTheDocument();
+    expect(pillarSection.getByText('Income & Employment')).toBeInTheDocument();
 
     // Verify ValidationFlags is rendered (Requirement 1.5)
     expect(screen.getByText('Data Quality Indicators')).toBeInTheDocument();

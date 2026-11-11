@@ -1,4 +1,5 @@
 import React from 'react';
+import { PERSONAL_PILLARS } from '../config/personalScore';
 
 /**
  * PillarBreakdown - Display scores for all nine financial pillars
@@ -12,19 +13,6 @@ import React from 'react';
  * Validates Requirements: 1.4, 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 7.8, 7.9
  */
 const PillarBreakdown = ({ pillarBreakdown }) => {
-  // Define pillar configuration with labels and weights
-  const pillars = [
-    { key: 'financial_obligations', label: 'Financial Obligations', weight: 15 },
-    { key: 'income_employment', label: 'Income & Employment', weight: 15 },
-    { key: 'mobile_money', label: 'Mobile Money', weight: 12 },
-    { key: 'assets', label: 'Assets', weight: 12 },
-    { key: 'savings_banking', label: 'Savings & Banking', weight: 12 },
-    { key: 'expense_management', label: 'Expense Management', weight: 12 },
-    { key: 'household_profile', label: 'Household Profile', weight: 8 },
-    { key: 'financial_literacy', label: 'Financial Literacy', weight: 8 },
-    { key: 'business_profile', label: 'Business Profile', weight: 6 }
-  ];
-
   // Get status color based on score
   const getStatusColor = (score) => {
     if (score >= 80) return '#10b981'; // Green
@@ -38,7 +26,7 @@ const PillarBreakdown = ({ pillarBreakdown }) => {
     <div className="pillar-breakdown">
       <h3 className="pillar-breakdown-title">Financial Pillars Breakdown</h3>
       <div className="pillar-list">
-        {pillars.map(pillar => {
+        {PERSONAL_PILLARS.map(pillar => {
           const pillarData = pillarBreakdown?.[pillar.key] || { score: 0, contribution: 0 };
           const score = pillarData.score || 0;
           const contribution = pillarData.contribution || 0;

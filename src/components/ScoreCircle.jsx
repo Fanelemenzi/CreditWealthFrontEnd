@@ -71,8 +71,8 @@ const ScoreCircle = ({ score, animated = true }) => {
       <svg className="score-circle" width="320" height="320" viewBox="0 0 320 320">
         <defs>
           <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#3b82f6" />
-            <stop offset="50%" stopColor="#8b5cf6" />
+            <stop offset="0%" stopColor="#3cc3b2" />
+            <stop offset="50%" stopColor="#1f8f84" />
             <stop offset="100%" stopColor={scoreColor} />
           </linearGradient>
           <filter id="glow">

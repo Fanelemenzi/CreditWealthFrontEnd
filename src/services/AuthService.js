@@ -1,30 +1,24 @@
-import apiClient from './apiClient.js'
-
-const storeTokens = (data) => {
-  const { access_token: access, refresh_token: refresh } = data || {}
-
-  if (
-    typeof access !== 'string' || !access ||
-    typeof refresh !== 'string' || !refresh
-  ) {
-    throw new Error('Authentication response did not include access_token and refresh_token.')
-  }
-
-  localStorage.setItem('access_token', access)
-  localStorage.setItem('refresh_token', refresh)
-  return data
-}
+import {
+  logInWithEmail,
+  logInWithGoogle,
+  logOut,
+  resetPassword,
+  signUpWithEmail
+} from './auth.js'
 
 class AuthService {
-  async signup(userData) {
-    const response = await apiClient.post('/api/auth/signup/', userData)
-    return storeTokens(response.data)
+  signup(userData) {
+    const name = [userData.first_name, userData.last_name].filter(Boolean).join(' ')
+    return signUpWithEmail(name, userData.email, userData.password)
   }
 
-  async signin(credentials) {
-    const response = await apiClient.post('/api/auth/signin/', credentials)
-    return storeTokens(response.data)
+  signin(credentials) {
+    return logInWithEmail(credentials.email, credentials.password)
   }
+
+  googleSignin() { return logInWithGoogle() }
+  resetPassword(email) { return resetPassword(email) }
+  signout() { return logOut() }
 }
 
 export default new AuthService()

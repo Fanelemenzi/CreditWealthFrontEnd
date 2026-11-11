@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import apiClient from './apiClient.js'
+import { authApiClient } from './apiClient.js'
 import AuthService from './AuthService.js'
 
 vi.mock('./apiClient.js', () => ({
-  default: {
+  authApiClient: {
     post: vi.fn()
   }
 }))
@@ -14,49 +14,52 @@ describe('AuthService', () => {
     localStorage.clear()
   })
 
-  it('signs up using the documented endpoint and stores both tokens', async () => {
+  it('registers with the Business API, then signs in and stores both tokens', async () => {
     const signupData = {
-      phone_number: '+26878123456',
+      phone: '+26878123456',
+      username: '+26878123456',
       password: 'SecurePass123!',
-      password_confirm: 'SecurePass123!',
-      full_name: 'John Doe',
-      email: 'john@example.com',
-      registration_channel: 'web',
-      preferred_language: 'en'
+      first_name: 'John',
+      last_name: 'Doe',
+      national_id: '9001010000000',
+      date_of_birth: '1990-01-01'
     }
-    const responseData = {
-      access_token: 'access-token',
-      refresh_token: 'refresh-token'
-    }
-    apiClient.post.mockResolvedValue({ data: responseData })
+    const tokens = { access: 'access-token', refresh: 'refresh-token' }
+    authApiClient.post
+      .mockResolvedValueOnce({ status: 201, data: { id: 'uuid' } })
+      .mockResolvedValueOnce({ data: tokens })
 
-    await expect(AuthService.signup(signupData)).resolves.toEqual(responseData)
+    await expect(AuthService.signup(signupData)).resolves.toEqual(tokens)
 
-    expect(apiClient.post).toHaveBeenCalledWith('/api/auth/signup/', signupData)
+    expect(authApiClient.post).toHaveBeenNthCalledWith(1, '/api/auth/register/', signupData)
+    expect(authApiClient.post).toHaveBeenNthCalledWith(2, '/api/auth/token/', {
+      phone: '+26878123456',
+      password: 'SecurePass123!'
+    })
     expect(localStorage.getItem('access_token')).toBe('access-token')
     expect(localStorage.getItem('refresh_token')).toBe('refresh-token')
   })
 
-  it('signs in using the documented endpoint and stores both tokens', async () => {
-    const credentials = { phone_number: '+26878123456', password: 'SecurePass123!' }
-    apiClient.post.mockResolvedValue({
-      data: { access_token: 'access-token', refresh_token: 'refresh-token' }
+  it('signs in with the Business API and stores both tokens', async () => {
+    const credentials = { phone: '+26878123456', password: 'SecurePass123!' }
+    authApiClient.post.mockResolvedValue({
+      data: { access: 'access-token', refresh: 'refresh-token' }
     })
 
     await AuthService.signin(credentials)
 
-    expect(apiClient.post).toHaveBeenCalledWith('/api/auth/signin/', credentials)
+    expect(authApiClient.post).toHaveBeenCalledWith('/api/auth/token/', credentials)
     expect(localStorage.getItem('access_token')).toBe('access-token')
     expect(localStorage.getItem('refresh_token')).toBe('refresh-token')
   })
 
   it('does not report success when the response has no token pair', async () => {
-    apiClient.post.mockResolvedValue({ data: { message: 'Unexpected response' } })
+    authApiClient.post.mockResolvedValue({ data: { message: 'Unexpected response' } })
 
     await expect(AuthService.signin({
-      phone_number: '+26878123456',
+      phone: '+26878123456',
       password: 'SecurePass123!'
-    })).rejects.toThrow('Authentication response did not include access_token and refresh_token.')
+    })).rejects.toThrow('Authentication response did not include access and refresh tokens.')
 
     expect(localStorage.getItem('access_token')).toBeNull()
     expect(localStorage.getItem('refresh_token')).toBeNull()

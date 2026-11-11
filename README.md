@@ -13,7 +13,9 @@ A modern, responsive frontend for a self-assessment credit scoring platform buil
 
 ### 🔐 Login Page
 - Dual-mode authentication (Sign In / Sign Up)
-- Social login options (Google, Facebook)
+- Firebase email/password authentication
+- Google sign-in through Firebase
+- Email verification and password recovery
 - Remember me functionality
 - Password recovery option
 - Beautiful gradient background with trust indicators
@@ -98,13 +100,25 @@ frontend2/
 - Footer with links
 
 ### Login Page (`/login`)
-- Toggle between Sign In and Sign Up
-- Phone-number authentication using the backend signup/signin API
-- JWT access and refresh tokens stored after successful authentication
-- Form validation and visible authentication errors
-- Social authentication buttons
+- Toggle between Firebase email/password sign in and sign up
+- Google sign-in using Firebase Authentication
+- Email verification and password reset flows
+- Unverified users can continue to the dashboard and see a verification prompt
+- Verification email resend is protected by a 60-second countdown
+- Firebase ID tokens attached to requests to both configured APIs
 - Responsive split layout
 - Successful authentication navigates to the credit-score dashboard
+
+### Firebase configuration
+
+Copy `.env.example` to `.env`, add the Firebase web app values, and configure
+the API base URLs. In local development, the business API uses `http://localhost:8080`
+and the personal assessment/score API uses `http://localhost:8000`. Keep
+`VITE_ENABLE_BUSINESS_SCORE=false` until the business score service is ready.
+Enable Email/Password and Google under Firebase
+Authentication > Sign-in method, and add the local and production frontend
+domains under Authorized domains. The Firebase web API key is safe to expose
+in the frontend; never add a service-account JSON file to this project.
 
 ### Credit Score Dashboard (`/dashboard`)
 - **Main Feature**: Large animated circular score graphic (724 score example)

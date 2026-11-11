@@ -20,6 +20,22 @@ const renderLoginPage = () => render(
   </MemoryRouter>
 )
 
+const fillSignupForm = () => {
+  fireEvent.click(screen.getByRole('button', { name: 'Sign up' }))
+  const values = {
+    'First Name': 'John',
+    'Last Name': 'Doe',
+    'National ID Number': '9001010000000',
+    'Date of Birth': '1990-01-01',
+    'Phone Number': '+26878123456',
+    Password: 'SecurePass123!',
+    'Confirm Password': 'SecurePass123!'
+  }
+  Object.entries(values).forEach(([label, value]) => {
+    fireEvent.change(screen.getByLabelText(label), { target: { value } })
+  })
+}
+
 describe('LoginPage authentication workflow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -39,7 +55,7 @@ describe('LoginPage authentication workflow', () => {
 
     await waitFor(() => {
       expect(AuthService.signin).toHaveBeenCalledWith({
-        phone_number: '+26878123456',
+        phone: '+26878123456',
         password: 'SecurePass123!'
       })
     })
@@ -67,68 +83,35 @@ describe('LoginPage authentication workflow', () => {
   it('displays backend signup validation details', async () => {
     AuthService.signup.mockRejectedValue({
       response: {
-        data: {
-          error: 'Validation failed',
-          details: { email: ['Email is required for web registrations.'] }
-        }
+        data: { national_id: ['A user with this national ID already exists.'] }
       }
     })
     renderLoginPage()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign up' }))
-    fireEvent.change(screen.getByLabelText('Full Name'), {
-      target: { value: 'John Doe' }
-    })
-    fireEvent.change(screen.getByLabelText('Email Address'), {
-      target: { value: 'john@example.com' }
-    })
-    fireEvent.change(screen.getByLabelText('Phone Number'), {
-      target: { value: '+26878123456' }
-    })
-    fireEvent.change(screen.getByLabelText('Password'), {
-      target: { value: 'SecurePass123!' }
-    })
-    fireEvent.change(screen.getByLabelText('Confirm Password'), {
-      target: { value: 'SecurePass123!' }
-    })
+    fillSignupForm()
     fireEvent.click(screen.getByRole('button', { name: 'Create Account' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Email is required for web registrations.'
+      'A user with this national ID already exists.'
     )
   })
 
-  it('signs up with the documented fields and proceeds to the dashboard', async () => {
+  it('signs up with the Business API fields and proceeds to the dashboard', async () => {
     AuthService.signup.mockResolvedValue({})
     renderLoginPage()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign up' }))
-    fireEvent.change(screen.getByLabelText('Full Name'), {
-      target: { value: 'John Doe' }
-    })
-    fireEvent.change(screen.getByLabelText('Email Address'), {
-      target: { value: 'john@example.com' }
-    })
-    fireEvent.change(screen.getByLabelText('Phone Number'), {
-      target: { value: '+26878123456' }
-    })
-    fireEvent.change(screen.getByLabelText('Password'), {
-      target: { value: 'SecurePass123!' }
-    })
-    fireEvent.change(screen.getByLabelText('Confirm Password'), {
-      target: { value: 'SecurePass123!' }
-    })
+    fillSignupForm()
     fireEvent.click(screen.getByRole('button', { name: 'Create Account' }))
 
     await waitFor(() => {
       expect(AuthService.signup).toHaveBeenCalledWith({
-        phone_number: '+26878123456',
+        phone: '+26878123456',
+        username: '+26878123456',
         password: 'SecurePass123!',
-        password_confirm: 'SecurePass123!',
-        full_name: 'John Doe',
-        email: 'john@example.com',
-        registration_channel: 'web',
-        preferred_language: 'en'
+        first_name: 'John',
+        last_name: 'Doe',
+        national_id: '9001010000000',
+        date_of_birth: '1990-01-01'
       })
     })
     expect(await screen.findByRole('heading', { name: 'Credit dashboard' })).toBeInTheDocument()
@@ -136,19 +119,8 @@ describe('LoginPage authentication workflow', () => {
 
   it('checks signup password confirmation before making the API request', async () => {
     renderLoginPage()
-    fireEvent.click(screen.getByRole('button', { name: 'Sign up' }))
-    fireEvent.change(screen.getByLabelText('Full Name'), {
-      target: { value: 'John Doe' }
-    })
-    fireEvent.change(screen.getByLabelText('Email Address'), {
-      target: { value: 'john@example.com' }
-    })
-    fireEvent.change(screen.getByLabelText('Phone Number'), {
-      target: { value: '+26878123456' }
-    })
-    fireEvent.change(screen.getByLabelText('Password'), {
-      target: { value: 'SecurePass123!' }
-    })
+
+    fillSignupForm()
     fireEvent.change(screen.getByLabelText('Confirm Password'), {
       target: { value: 'different-password' }
     })

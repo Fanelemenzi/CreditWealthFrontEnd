@@ -5,6 +5,7 @@ import ValidationService from '../services/ValidationService';
 import ScoreService from '../services/ScoreService';
 import { assessmentSections, getSectionByIndex } from '../config/assessmentSections';
 import '../styles/AssessmentPage.css';
+import '../styles/NewDesign.css';
 
 /**
  * AssessmentPage - Multi-step financial assessment wizard
@@ -339,7 +340,7 @@ const AssessmentPage = () => {
   // Loading state
   if (loading) {
     return (
-      <div className="credit-score-page">
+      <div className="credit-score-page assessment-redesign">
         <nav className="dashboard-nav">
           <div className="nav-container">
             <div className="logo">
@@ -364,7 +365,7 @@ const AssessmentPage = () => {
   // Error state
   if (error) {
     return (
-      <div className="credit-score-page">
+      <div className="credit-score-page assessment-redesign">
         <nav className="dashboard-nav">
           <div className="nav-container">
             <div className="logo">
@@ -394,7 +395,7 @@ const AssessmentPage = () => {
 
   // Main assessment interface
   return (
-    <div className="credit-score-page">
+    <div className="credit-score-page assessment-redesign">
       {/* Navigation Bar */}
       <nav className="dashboard-nav">
         <div className="nav-container">
@@ -449,7 +450,7 @@ const AssessmentPage = () => {
                         {currentSection?.description}
                       </p>
                     </div>
-                    <div className="score-badge" style={{ color: '#4f46e5' }}>
+                    <div className="score-badge" style={{ color: '#1f8f84' }}>
                       Section {currentSectionIndex + 1} of {assessmentSections.length}
                     </div>
                   </div>
@@ -467,7 +468,7 @@ const AssessmentPage = () => {
                       }}>
                         <div 
                           style={{ 
-                            background: '#4f46e5',
+                            background: '#3cc3b2',
                             height: '100%',
                             width: `${((currentSectionIndex + 1) / assessmentSections.length) * 100}%`,
                             transition: 'width 0.3s ease'
@@ -569,7 +570,7 @@ const AssessmentPage = () => {
                                     padding: '0.75rem',
                                     border: '1px solid #d1d5db',
                                     borderRadius: '0.375rem',
-                                    background: answers[question.id] === opt.value ? '#eff6ff' : 'white'
+                                    background: answers[question.id] === opt.value ? '#e5f4f1' : 'white'
                                   }}
                                 >
                                   <input
@@ -599,7 +600,7 @@ const AssessmentPage = () => {
                                     padding: '0.75rem',
                                     border: '1px solid #d1d5db',
                                     borderRadius: '0.375rem',
-                                    background: (answers[question.id] || []).includes(opt.value) ? '#eff6ff' : 'white'
+                                    background: (answers[question.id] || []).includes(opt.value) ? '#e5f4f1' : 'white'
                                   }}
                                 >
                                   <input

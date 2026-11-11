@@ -5,6 +5,18 @@ import LoginPage from './pages/LoginPage'
 import CreditScorePage from './pages/CreditScorePage'
 import DashboardPage from './pages/DashboardPage'
 import AssessmentPage from './pages/AssessmentPage'
+import { useAuth } from './AuthContext'
+
+function ProtectedRoute({ children }) {
+  const { firebaseUser, loading } = useAuth()
+
+  if (loading) return <p>Loading...</p>
+  if (!firebaseUser) {
+    return <Navigate to="/login" replace />
+  }
+
+  return children
+}
 
 function App() {
   return (
@@ -12,9 +24,9 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/assessment" element={<AssessmentPage />} />
-        <Route path="/credit-score" element={<CreditScorePage />} />
+        <Route path="/dashboard" element={<ProtectedRoute><DashboardPage /></ProtectedRoute>} />
+        <Route path="/assessment" element={<ProtectedRoute><AssessmentPage /></ProtectedRoute>} />
+        <Route path="/credit-score" element={<ProtectedRoute><CreditScorePage /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
